@@ -9,6 +9,7 @@ import { I18nService } from "@bitwarden/common/platform/abstractions/i18n.servic
 import { PlatformUtilsService } from "@bitwarden/common/platform/abstractions/platform-utils.service";
 import { GlobalStateProvider } from "@bitwarden/common/platform/state";
 import { CipherService } from "@bitwarden/common/vault/abstractions/cipher.service";
+import { VaultSettingsService } from "@bitwarden/common/vault/abstractions/vault-settings/vault-settings.service";
 import { CipherType } from "@bitwarden/common/vault/enums";
 import { CompactModeService, DialogService, ToastService } from "@bitwarden/components";
 import { StateProvider } from "@bitwarden/state";
@@ -50,6 +51,10 @@ describe("AutofillVaultListItemsComponent", () => {
           useValue: { activeAccount$: new BehaviorSubject({ id: "acct-id" }) },
         },
         { provide: PlatformUtilsService, useValue: mock<PlatformUtilsService>() },
+        {
+          provide: VaultSettingsService,
+          useValue: { clickItemsToAutofillVaultView$: of(true) },
+        },
         { provide: ToastService, useValue: mock<ToastService>() },
         { provide: DialogService, useValue: mock<DialogService>() },
         { provide: I18nService, useValue: { t: (key: string) => key } },

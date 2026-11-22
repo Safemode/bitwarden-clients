@@ -47,6 +47,7 @@ import { RevealedCipherService } from "@bitwarden/common/vault/abstractions/reve
 import { SearchService } from "@bitwarden/common/vault/abstractions/search.service";
 import { SyncService } from "@bitwarden/common/vault/abstractions/sync/sync.service.abstraction";
 import { TotpService } from "@bitwarden/common/vault/abstractions/totp.service";
+import { VaultSettingsService } from "@bitwarden/common/vault/abstractions/vault-settings/vault-settings.service";
 import { CipherType } from "@bitwarden/common/vault/enums";
 import { AttachmentView } from "@bitwarden/common/vault/models/view/attachment.view";
 import { CipherView } from "@bitwarden/common/vault/models/view/cipher.view";
@@ -654,6 +655,7 @@ const buildProviders = (args: StoryArgs) => {
       },
     },
     { provide: RestrictedItemTypesService, useValue: { restricted$: of([]) } },
+    { provide: VaultSettingsService, useValue: { clickItemsToAutofillVaultView$: of(true) } },
     { provide: RevealedCipherService, useClass: NoopRevealedCipherService },
     {
       provide: EnvironmentService,

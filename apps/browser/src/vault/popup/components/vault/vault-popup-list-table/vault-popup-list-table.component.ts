@@ -12,6 +12,7 @@ import {
   inject,
   Injector,
   isDevMode,
+  signal,
   viewChild,
 } from "@angular/core";
 import { takeUntilDestroyed, toObservable, toSignal } from "@angular/core/rxjs-interop";
@@ -29,6 +30,7 @@ import { getUserId } from "@bitwarden/common/auth/services/account.service";
 import { FeatureFlag } from "@bitwarden/common/enums/feature-flag.enum";
 import { ConfigService } from "@bitwarden/common/platform/abstractions/config/config.service";
 import { I18nService } from "@bitwarden/common/platform/abstractions/i18n.service";
+import { PlatformUtilsService } from "@bitwarden/common/platform/abstractions/platform-utils.service";
 import { CipherId } from "@bitwarden/common/types/guid";
 import { CipherType } from "@bitwarden/common/vault/enums";
 import { FolderView } from "@bitwarden/common/vault/models/view/folder.view";
@@ -45,6 +47,7 @@ import {
   BitTableToolbarComponent,
   BitTableV2Component,
   ButtonModule,
+  ChipActionComponent,
   ChipFilterOption,
   CollapseOnScrollDirective,
   CompactModeService,
@@ -164,6 +167,7 @@ function contributedFilter(filter: VaultItemFilter | null): VaultItemFilter | nu
     StatusLockupComponent,
     SvgComponent,
     TypographyModule,
+    ChipActionComponent,
     EmptyVaultComponent,
     ItemCopyActionsComponent,
     ItemMoreOptionsComponent,
@@ -196,6 +200,7 @@ export class VaultPopupListTableComponent {
     () => this.listTableService.vaultScope().type !== VaultScopeType.AllItems,
   );
   private readonly liveAnnouncer = inject(LiveAnnouncer);
+  private readonly platformUtilsService = inject(PlatformUtilsService);
   private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly i18nService = inject(I18nService);
@@ -662,6 +667,9 @@ export class VaultPopupListTableComponent {
   /** Whether the popup is rendered in the sidebar, where the autofill refresh control is offered. */
   protected readonly showRefresh = BrowserPopupUtils.inSidebar(this.window);
 
+  /** Keyboard-shortcut tooltip for the standalone autofill chip, e.g. "Autofill Ctrl+Shift+L". */
+  protected readonly autofillShortcutTooltip = signal<string | undefined>(undefined);
+
   /** The all-items section heading, which becomes "Search results" while a search is active. */
   protected readonly allItemsSectionKey = computed(() =>
     this.hasSearchText() ? "searchResults" : "allItems",
@@ -738,6 +746,16 @@ export class VaultPopupListTableComponent {
         );
       });
 
+    // Resolve the keyboard-shortcut tooltip once a row shows the standalone autofill chip, so the
+    // default (click-to-fill) list makes no extra calls.
+    let shortcutRequested = false;
+    effect(() => {
+      if (!shortcutRequested && this.rows().some((row) => row.actions.showAutofillBadge)) {
+        shortcutRequested = true;
+        void this.setAutofillShortcutTooltip();
+      }
+    });
+
     // Wire up persistence after the first render so we can access the table reference.
     afterNextRender(() => {
       const table = this.tableEl();
@@ -765,6 +783,18 @@ export class VaultPopupListTableComponent {
           });
         });
     });
+  }
+
+  private async setAutofillShortcutTooltip() {
+    try {
+      const shortcut = await this.platformUtilsService.getAutofillKeyboardShortcut();
+      // An unassigned shortcut comes back empty (or undefined in Firefox): fall back to the plain title.
+      this.autofillShortcutTooltip.set(
+        shortcut ? `${this.i18nService.t("autofillVerb")} ${shortcut}` : undefined,
+      );
+    } catch {
+      this.autofillShortcutTooltip.set(undefined);
+    }
   }
 
   onSearchTextChanged() {

@@ -69,6 +69,7 @@ describe("AppearanceComponent", () => {
   const setEnableCompactMode = jest.fn().mockResolvedValue(undefined);
   const setShowQuickCopyActions = jest.fn().mockResolvedValue(undefined);
   const setShowAtRiskPasswordNotifications = jest.fn().mockResolvedValue(undefined);
+  const setClickItemsToAutofillVaultView = jest.fn().mockResolvedValue(undefined);
 
   const mockWidthService: Partial<PopupSizeService> = {
     width$: new BehaviorSubject("default"),
@@ -81,6 +82,7 @@ describe("AppearanceComponent", () => {
     setEnableBadgeCounter.mockClear();
     setEnableRoutingAnimation.mockClear();
     setShowAtRiskPasswordNotifications.mockClear();
+    setClickItemsToAutofillVaultView.mockClear();
 
     await TestBed.configureTestingModule({
       imports: [AppearanceComponent],
@@ -118,6 +120,8 @@ describe("AppearanceComponent", () => {
           useValue: {
             showAtRiskPasswordNotifications$: of(true),
             setShowAtRiskPasswordNotifications,
+            clickItemsToAutofillVaultView$: of(true),
+            setClickItemsToAutofillVaultView,
           },
         },
         {
@@ -163,6 +167,7 @@ describe("AppearanceComponent", () => {
       enableCompactMode: false,
       showQuickCopyActions: false,
       width: "default",
+      clickItemsToAutofillVaultView: true,
       showAtRiskNotifications: true,
     });
   });
@@ -209,6 +214,22 @@ describe("AppearanceComponent", () => {
 
       expect(mockWidthService.setWidth).toHaveBeenCalledWith("wide");
     });
+
+    it("updates the click items in autofill suggestion to fill setting", () => {
+      component.appearanceForm.controls.clickItemsToAutofillVaultView.setValue(false);
+
+      expect(setClickItemsToAutofillVaultView).toHaveBeenCalledWith(false);
+    });
+  });
+
+  it("shows the click items in autofill suggestion to fill checkbox", async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const checkbox = fixture.debugElement.query(
+      By.css('input[formControlName="clickItemsToAutofillVaultView"]'),
+    );
+    expect(checkbox).not.toBeNull();
   });
 
   describe("showAtRiskNotifications", () => {

@@ -11,8 +11,10 @@ import {
   Signal,
   ViewChild,
   computed,
+  effect,
   ChangeDetectionStrategy,
   input,
+  signal,
 } from "@angular/core";
 import { toSignal } from "@angular/core/rxjs-interop";
 import { Router } from "@angular/router";
@@ -22,6 +24,7 @@ import { JslibModule } from "@bitwarden/angular/jslib.module";
 import { AccountService } from "@bitwarden/common/auth/abstractions/account.service";
 import { getUserId } from "@bitwarden/common/auth/services/account.service";
 import { I18nService } from "@bitwarden/common/platform/abstractions/i18n.service";
+import { PlatformUtilsService } from "@bitwarden/common/platform/abstractions/platform-utils.service";
 import { uuidAsString } from "@bitwarden/common/platform/abstractions/sdk/sdk.service";
 import { CipherId } from "@bitwarden/common/types/guid";
 import { CipherService } from "@bitwarden/common/vault/abstractions/cipher.service";
@@ -32,6 +35,7 @@ import {
 } from "@bitwarden/common/vault/utils/cipher-view-like-utils";
 import {
   ButtonModule,
+  ChipActionComponent,
   CompactModeService,
   DisclosureComponent,
   DisclosureTriggerForDirective,
@@ -79,6 +83,7 @@ import { ItemMoreOptionsComponent } from "../item-more-options/item-more-options
     DisclosureTriggerForDirective,
     ScrollLayoutDirective,
     IconComponent,
+    ChipActionComponent,
   ],
   selector: "app-vault-list-items-container",
   templateUrl: "vault-list-items-container.component.html",
@@ -87,6 +92,7 @@ import { ItemMoreOptionsComponent } from "../item-more-options/item-more-options
 export class VaultListItemsContainerComponent {
   private compactModeService = inject(CompactModeService);
   private vaultPopupSectionService = inject(VaultPopupSectionService);
+  private platformUtilsService = inject(PlatformUtilsService);
   protected CipherViewLikeUtils = CipherViewLikeUtils;
 
   // FIXME(https://bitwarden.atlassian.net/browse/CL-903): Migrate to Signals
@@ -243,14 +249,34 @@ export class VaultListItemsContainerComponent {
   readonly isAutofillList = input(false, { transform: booleanAttribute });
 
   /**
+   * The user's "Click items in autofill suggestion to fill" setting. When off, clicking an
+   * autofill suggestion opens the item and a separate "Fill" button is shown instead.
+   */
+  readonly clickItemsToAutofill = input(true, { transform: booleanAttribute });
+
+  /**
    * Computed property whether the cipher action may perform autofill.
    */
-  readonly canAutofill = computed(() => !this.currentUriIsBlocked() && this.isAutofillList());
+  readonly canAutofill = computed(
+    () => !this.currentUriIsBlocked() && this.isAutofillList() && this.clickItemsToAutofill(),
+  );
 
   /**
    * Whether to show the "Fill" text on hover.
    */
   readonly showFillTextOnHover = computed(() => this.canAutofill());
+
+  /**
+   * Whether to show the standalone "Fill" button, used when click-to-fill is turned off.
+   */
+  readonly showAutofillBadge = computed(
+    () => this.isAutofillList() && !this.currentUriIsBlocked() && !this.clickItemsToAutofill(),
+  );
+
+  /**
+   * Keyboard-shortcut tooltip for the standalone "Fill" button, e.g. "Autofill Ctrl+Shift+L".
+   */
+  protected readonly autofillShortcutTooltip = signal<string | undefined>(undefined);
 
   /**
    * Whether to show the launch button.
@@ -260,12 +286,12 @@ export class VaultListItemsContainerComponent {
   /**
    * Whether to show the "Autofill" option in the more options menu.
    */
-  readonly showAutofillInMenu = computed(() => !this.canAutofill());
+  readonly showAutofillInMenu = computed(() => !this.canAutofill() && !this.showAutofillBadge());
 
   /**
    * Whether to show the "View" option in the more options menu (since click = autofill).
    */
-  readonly showViewInMenu = computed(() => this.isAutofillList());
+  readonly showViewInMenu = computed(() => this.isAutofillList() && this.clickItemsToAutofill());
 
   /**
    * Remove the bottom margin from the bit-section in this component
@@ -298,7 +324,29 @@ export class VaultListItemsContainerComponent {
     private router: Router,
     private dialogService: DialogService,
     private accountService: AccountService,
-  ) {}
+  ) {
+    // Look up the shortcut only once the standalone "Fill" button is shown, so lists that never
+    // show it (the default) make no extra calls.
+    let shortcutRequested = false;
+    effect(() => {
+      if (this.showAutofillBadge() && !shortcutRequested) {
+        shortcutRequested = true;
+        void this.setAutofillShortcutTooltip();
+      }
+    });
+  }
+
+  private async setAutofillShortcutTooltip() {
+    try {
+      const shortcut = await this.platformUtilsService.getAutofillKeyboardShortcut();
+      // An unassigned shortcut comes back empty (or undefined in Firefox): fall back to the plain title.
+      this.autofillShortcutTooltip.set(
+        shortcut ? `${this.i18nService.t("autofillVerb")} ${shortcut}` : undefined,
+      );
+    } catch {
+      this.autofillShortcutTooltip.set(undefined);
+    }
+  }
 
   onCipherSelect(cipher: PopupCipherViewLike) {
     return this.canAutofill() ? this.doAutofill(cipher) : this.onViewCipher(cipher);

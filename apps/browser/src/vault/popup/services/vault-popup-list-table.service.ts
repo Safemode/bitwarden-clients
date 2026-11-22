@@ -21,6 +21,7 @@ import { getUserId } from "@bitwarden/common/auth/services/account.service";
 import { uuidAsString } from "@bitwarden/common/platform/abstractions/sdk/sdk.service";
 import { CipherId } from "@bitwarden/common/types/guid";
 import { CipherService } from "@bitwarden/common/vault/abstractions/cipher.service";
+import { VaultSettingsService } from "@bitwarden/common/vault/abstractions/vault-settings/vault-settings.service";
 import { CipherType } from "@bitwarden/common/vault/enums";
 import { SearchTextDebounceInterval } from "@bitwarden/common/vault/services/search.service";
 import {
@@ -64,6 +65,8 @@ export interface VaultRowActions {
   primaryAutofill: boolean;
   /** Reveal the "Fill" text on hover. */
   showFillOnHover: boolean;
+  /** Show the standalone "Fill" button, used when click-to-fill is turned off. */
+  showAutofillBadge: boolean;
   /** Show the launch-in-new-tab button (still gated on the cipher being launchable). */
   showLaunch: boolean;
   /** Show the quick copy actions. */
@@ -86,6 +89,7 @@ export type VaultTableRow = {
 /** Inputs that decide a row's action affordances. */
 interface RowActionContext {
   currentUriIsBlocked: boolean;
+  clickItemsToAutofillVaultView: boolean;
 }
 
 /**
@@ -107,6 +111,7 @@ export class VaultPopupListTableService {
   private readonly router = inject(Router);
   private readonly vaultPopupAutofillService = inject(VaultPopupAutofillService);
   private readonly listFiltersService = inject(VaultPopupListTableFiltersService);
+  private readonly vaultSettingsService = inject(VaultSettingsService);
 
   /**
    * The vault the page's `:vaultId` route segment narrows to.
@@ -165,15 +170,19 @@ export class VaultPopupListTableService {
   );
 
   /**
-   * The inputs that decide each row's action affordances. The `startWith` default keeps
-   * {@link rows$} emitting promptly: the blocklist stream resolves asynchronously, so without a
-   * seed the whole list would wait on it before first render.
+   * The inputs that decide each row's action affordances. The `startWith` defaults keep
+   * {@link rows$} emitting promptly: the blocklist and setting streams resolve asynchronously, so
+   * without a seed the whole list would wait on them before first render.
    */
-  private readonly rowActionContext$: Observable<RowActionContext> =
-    this.vaultPopupAutofillService.currentTabIsOnBlocklist$.pipe(
-      startWith(false),
-      map((currentUriIsBlocked) => ({ currentUriIsBlocked })),
-    );
+  private readonly rowActionContext$: Observable<RowActionContext> = combineLatest([
+    this.vaultPopupAutofillService.currentTabIsOnBlocklist$.pipe(startWith(false)),
+    this.vaultSettingsService.clickItemsToAutofillVaultView$.pipe(startWith(true)),
+  ]).pipe(
+    map(([currentUriIsBlocked, clickItemsToAutofillVaultView]) => ({
+      currentUriIsBlocked,
+      clickItemsToAutofillVaultView,
+    })),
+  );
 
   /**
    * The rows to render, in display order. When a search is active the list collapses to a single
@@ -290,15 +299,20 @@ export class VaultPopupListTableService {
   private resolveActions(
     cipher: PopupCipherViewLike,
     section: VaultSection,
-    { currentUriIsBlocked }: RowActionContext,
+    { currentUriIsBlocked, clickItemsToAutofillVaultView }: RowActionContext,
   ): VaultRowActions {
     const isAutofill = section === "autofill";
     // The list swaps a revealed view in for its restricted row, so a restricted row has nothing
     // revealed: the server withholds its credentials.
     const gated = RestrictedCipherPolicy.isRestricted(cipher as CipherViewLike);
 
-    // Whether clicking the row autofills: the autofill section fills unless the URI is blocked.
-    const primaryAutofill = !gated && isAutofill && !currentUriIsBlocked;
+    // Whether clicking the row autofills: the autofill section fills unless the URI is blocked or
+    // the user turned off click-to-fill.
+    const primaryAutofill =
+      !gated && isAutofill && !currentUriIsBlocked && clickItemsToAutofillVaultView;
+    // With click-to-fill off, autofill rows get a standalone "Fill" button instead.
+    const showAutofillBadge =
+      !gated && isAutofill && !currentUriIsBlocked && !clickItemsToAutofillVaultView;
 
     const login = CipherViewLikeUtils.getLogin(cipher as CipherViewLike);
     const titleBase = primaryAutofill ? "autofillTitle" : "viewItemTitle";
@@ -306,9 +320,10 @@ export class VaultPopupListTableService {
     return {
       primaryAutofill,
       showFillOnHover: primaryAutofill,
+      showAutofillBadge,
       showLaunch: !isAutofill && !gated,
       showCopyActions: !gated,
-      showAutofillInMenu: !gated && !primaryAutofill,
+      showAutofillInMenu: !gated && !primaryAutofill && !showAutofillBadge,
       showViewInMenu: primaryAutofill,
       // Name the login's username field in the label when it has one.
       titleKey: login?.username != null ? `${titleBase}WithField` : titleBase,

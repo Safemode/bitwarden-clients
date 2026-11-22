@@ -27,6 +27,7 @@ import { CipherArchiveService } from "@bitwarden/common/vault/abstractions/ciphe
 import { CipherService } from "@bitwarden/common/vault/abstractions/cipher.service";
 import { RevealedCipherService } from "@bitwarden/common/vault/abstractions/revealed-cipher.service";
 import { TotpService } from "@bitwarden/common/vault/abstractions/totp.service";
+import { VaultSettingsService } from "@bitwarden/common/vault/abstractions/vault-settings/vault-settings.service";
 import { CipherType } from "@bitwarden/common/vault/enums";
 import { FolderView } from "@bitwarden/common/vault/models/view/folder.view";
 import { CipherAuthorizationService } from "@bitwarden/common/vault/services/cipher-authorization.service";
@@ -339,6 +340,10 @@ describe("VaultPopupListTableComponent", () => {
         },
         { provide: RestrictedItemTypesService, useValue: { restricted$: of([]) } },
         { provide: PlatformUtilsService, useValue: mock<PlatformUtilsService>() },
+        {
+          provide: VaultSettingsService,
+          useValue: { clickItemsToAutofillVaultView$: of(true) },
+        },
         { provide: ToastService, useValue: {} },
         { provide: OrganizationService, useValue: { hasOrganizations: () => of(false) } },
         {

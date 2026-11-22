@@ -6,6 +6,7 @@ import { BehaviorSubject, firstValueFrom, map, of, Subject } from "rxjs";
 import { AccountService } from "@bitwarden/common/auth/abstractions/account.service";
 import { OrganizationId } from "@bitwarden/common/types/guid";
 import { CipherService } from "@bitwarden/common/vault/abstractions/cipher.service";
+import { VaultSettingsService } from "@bitwarden/common/vault/abstractions/vault-settings/vault-settings.service";
 import { CipherType } from "@bitwarden/common/vault/enums";
 import { SearchTextDebounceInterval } from "@bitwarden/common/vault/services/search.service";
 import { CipherViewLikeUtils } from "@bitwarden/common/vault/utils/cipher-view-like-utils";
@@ -45,6 +46,7 @@ describe("VaultPopupListTableService", () => {
   const applyScopedFilter = jest.fn();
 
   const currentTabIsOnBlocklist$ = new BehaviorSubject<boolean>(false);
+  const clickItemsToAutofillVaultView$ = new BehaviorSubject<boolean>(true);
   /** The chip selection, as the table's `filterValues` reports it. */
   const selectedFilters$ = new BehaviorSubject<{
     cipherType: CipherType | null;
@@ -70,6 +72,7 @@ describe("VaultPopupListTableService", () => {
     hasFilterApplied$.next(false);
     autofillAllowed$.next(true);
     currentTabIsOnBlocklist$.next(false);
+    clickItemsToAutofillVaultView$.next(true);
     selectedFilters$.next({ cipherType: null, organization: [], collection: [], folder: [] });
     memberOrganizations$.next([]);
 
@@ -109,6 +112,12 @@ describe("VaultPopupListTableService", () => {
         { provide: DialogService, useValue: mock<DialogService>() },
         { provide: Router, useValue: router },
         { provide: VaultPopupAutofillService, useValue: vaultPopupAutofillService },
+        {
+          provide: VaultSettingsService,
+          useValue: {
+            clickItemsToAutofillVaultView$: clickItemsToAutofillVaultView$.asObservable(),
+          },
+        },
         {
           provide: VaultPopupListTableFiltersService,
           useValue: {
@@ -478,6 +487,34 @@ describe("VaultPopupListTableService", () => {
       it("never fills on click when the current URI is blocked", async () => {
         currentTabIsOnBlocklist$.next(true);
         expect(autofillRow()).toMatchObject({ primaryAutofill: false, showFillOnHover: false });
+      });
+    });
+
+    describe("with click-to-fill turned off", () => {
+      beforeEach(() => clickItemsToAutofillVaultView$.next(false));
+
+      it("views autofill-section rows on click and shows the standalone Fill button", async () => {
+        expect(autofillRow()).toMatchObject({
+          primaryAutofill: false,
+          showFillOnHover: false,
+          showAutofillBadge: true,
+          showAutofillInMenu: false,
+          showViewInMenu: false,
+          titleKey: expect.stringMatching(/^viewItemTitle/),
+        });
+      });
+
+      it("hides the Fill button when the current URI is blocked", async () => {
+        currentTabIsOnBlocklist$.next(true);
+        expect(autofillRow()).toMatchObject({ primaryAutofill: false, showAutofillBadge: false });
+      });
+
+      it("does not change favorites/all-items rows", async () => {
+        expect(sectionRow("favorites")).toMatchObject({
+          primaryAutofill: false,
+          showAutofillBadge: false,
+          showAutofillInMenu: true,
+        });
       });
     });
 
