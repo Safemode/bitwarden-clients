@@ -7,6 +7,7 @@ import { BehaviorSubject, of } from "rxjs";
 
 import { AccountService } from "@bitwarden/common/auth/abstractions/account.service";
 import { I18nService } from "@bitwarden/common/platform/abstractions/i18n.service";
+import { PlatformUtilsService } from "@bitwarden/common/platform/abstractions/platform-utils.service";
 import { CipherService } from "@bitwarden/common/vault/abstractions/cipher.service";
 import { CipherType } from "@bitwarden/common/vault/enums";
 import { CompactModeService, DialogService } from "@bitwarden/components";
@@ -23,6 +24,7 @@ describe("VaultListItemsContainerComponent", () => {
   let component: VaultListItemsContainerComponent;
 
   const currentTabIsOnBlocklist$ = new BehaviorSubject<boolean>(false);
+  const platformUtilsService = mock<PlatformUtilsService>();
 
   const mockCipher = {
     id: "cipher-1",
@@ -57,6 +59,7 @@ describe("VaultListItemsContainerComponent", () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     currentTabIsOnBlocklist$.next(false);
+    platformUtilsService.getAutofillKeyboardShortcut.mockResolvedValue("");
 
     await TestBed.configureTestingModule({
       imports: [VaultListItemsContainerComponent, NoopAnimationsModule],
@@ -69,6 +72,7 @@ describe("VaultListItemsContainerComponent", () => {
         { provide: CipherService, useValue: mock<CipherService>() },
         { provide: Router, useValue: { navigate: jest.fn() } },
         { provide: PasswordRepromptService, useValue: mock<PasswordRepromptService>() },
+        { provide: PlatformUtilsService, useValue: platformUtilsService },
       ],
       schemas: [CUSTOM_ELEMENTS_SCHEMA],
     })
@@ -166,6 +170,83 @@ describe("VaultListItemsContainerComponent", () => {
 
         expect(component.canAutofill()).toBe(false);
       });
+    });
+
+    describe("when click-to-fill is turned off", () => {
+      beforeEach(() => {
+        fixture.componentRef.setInput("isAutofillList", true);
+        fixture.componentRef.setInput("clickItemsToAutofill", false);
+        fixture.detectChanges();
+      });
+
+      it("should open the item on select instead of autofilling", () => {
+        expect(component.canAutofill()).toBe(false);
+        expect(component.showFillTextOnHover()).toBe(false);
+      });
+
+      it("should show the standalone Fill button", () => {
+        expect(component.showAutofillBadge()).toBe(true);
+      });
+
+      it("should not offer Autofill or View in the more options menu", () => {
+        expect(component.showAutofillInMenu()).toBe(false);
+        expect(component.showViewInMenu()).toBe(false);
+      });
+
+      it("should hide the Fill button when the current URI is blocked", () => {
+        currentTabIsOnBlocklist$.next(true);
+        fixture.detectChanges();
+
+        expect(component.showAutofillBadge()).toBe(false);
+      });
+    });
+
+    it("should not show the standalone Fill button when click-to-fill is on", () => {
+      fixture.componentRef.setInput("isAutofillList", true);
+      fixture.detectChanges();
+
+      expect(component.showAutofillBadge()).toBe(false);
+    });
+  });
+
+  describe("Fill button shortcut tooltip", () => {
+    const tooltip = () => (component as any).autofillShortcutTooltip();
+
+    const showBadge = async () => {
+      fixture.componentRef.setInput("isAutofillList", true);
+      fixture.componentRef.setInput("clickItemsToAutofill", false);
+      fixture.detectChanges();
+      await fixture.whenStable();
+    };
+
+    it("does not look up the shortcut while click-to-fill is on", async () => {
+      fixture.componentRef.setInput("isAutofillList", true);
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(platformUtilsService.getAutofillKeyboardShortcut).not.toHaveBeenCalled();
+    });
+
+    it("shows the shortcut when one is assigned", async () => {
+      platformUtilsService.getAutofillKeyboardShortcut.mockResolvedValue("Ctrl+Shift+L");
+      await showBadge();
+
+      expect(platformUtilsService.getAutofillKeyboardShortcut).toHaveBeenCalledTimes(1);
+      expect(tooltip()).toBe("autofillVerb Ctrl+Shift+L");
+    });
+
+    it.each([[""], [undefined]])("falls back when the shortcut is %p", async (shortcut) => {
+      platformUtilsService.getAutofillKeyboardShortcut.mockResolvedValue(shortcut as any);
+      await showBadge();
+
+      expect(tooltip()).toBeUndefined();
+    });
+
+    it("falls back when the shortcut lookup fails", async () => {
+      platformUtilsService.getAutofillKeyboardShortcut.mockRejectedValue(new Error("no commands"));
+      await showBadge();
+
+      expect(tooltip()).toBeUndefined();
     });
   });
 

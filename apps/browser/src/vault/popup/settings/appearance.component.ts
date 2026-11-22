@@ -80,6 +80,7 @@ export class AppearanceComponent implements OnInit {
     enableCompactMode: false,
     showQuickCopyActions: false,
     width: "default" as PopupWidthOption,
+    clickItemsToAutofillVaultView: true,
     showAtRiskNotifications: true,
   });
 
@@ -126,6 +127,9 @@ export class AppearanceComponent implements OnInit {
       this.copyButtonsService.showQuickCopyActions$,
     );
     const width = await firstValueFrom(this.popupSizeService.width$);
+    const clickItemsToAutofillVaultView = await firstValueFrom(
+      this.vaultSettingsService.clickItemsToAutofillVaultView$,
+    );
     const showAtRiskNotifications = await firstValueFrom(
       this.vaultSettingsService.showAtRiskPasswordNotifications$,
     );
@@ -139,6 +143,7 @@ export class AppearanceComponent implements OnInit {
       enableCompactMode,
       showQuickCopyActions,
       width,
+      clickItemsToAutofillVaultView,
       showAtRiskNotifications,
     });
 
@@ -186,11 +191,21 @@ export class AppearanceComponent implements OnInit {
         void this.updateWidth(width);
       });
 
+    this.appearanceForm.controls.clickItemsToAutofillVaultView.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((clickItemsToAutofillVaultView) => {
+        void this.updateClickItemsToAutofillVaultView(clickItemsToAutofillVaultView);
+      });
+
     this.appearanceForm.controls.showAtRiskNotifications.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((showAtRiskNotifications) => {
         void this.updateShowAtRiskNotifications(showAtRiskNotifications);
       });
+  }
+
+  async updateClickItemsToAutofillVaultView(clickItemsToAutofillVaultView: boolean) {
+    await this.vaultSettingsService.setClickItemsToAutofillVaultView(clickItemsToAutofillVaultView);
   }
 
   async updateShowAtRiskNotifications(showAtRiskNotifications: boolean) {

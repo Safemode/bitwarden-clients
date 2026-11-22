@@ -1,9 +1,10 @@
 import { CommonModule } from "@angular/common";
 import { Component } from "@angular/core";
 import { toSignal } from "@angular/core/rxjs-interop";
-import { combineLatest, map, Observable } from "rxjs";
+import { combineLatest, map, Observable, startWith } from "rxjs";
 
 import { JslibModule } from "@bitwarden/angular/jslib.module";
+import { VaultSettingsService } from "@bitwarden/common/vault/abstractions/vault-settings/vault-settings.service";
 import { CipherType } from "@bitwarden/common/vault/enums";
 import { CipherViewLikeUtils } from "@bitwarden/common/vault/utils/cipher-view-like-utils";
 import { TypographyModule } from "@bitwarden/components";
@@ -42,6 +43,12 @@ export class AutofillVaultListItemsComponent {
    */
   protected showRefresh: boolean = BrowserPopupUtils.inSidebar(window);
 
+  /** Whether clicking an autofill suggestion fills it rather than opening its details. */
+  protected clickItemsToAutofillVaultView$: Observable<boolean> =
+    this.vaultSettingsService.clickItemsToAutofillVaultView$.pipe(
+      startWith(true), // Start with true to avoid flashing the fill button on first load
+    );
+
   protected readonly groupByType = toSignal(
     this.vaultPopupItemsService.hasFilterApplied$.pipe(map((hasFilter) => !hasFilter)),
   );
@@ -74,6 +81,7 @@ export class AutofillVaultListItemsComponent {
   constructor(
     private vaultPopupItemsService: VaultPopupItemsService,
     private vaultPopupAutofillService: VaultPopupAutofillService,
+    private vaultSettingsService: VaultSettingsService,
   ) {}
 
   /**

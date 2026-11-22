@@ -8,10 +8,11 @@
     [showRefresh]="showRefresh"
     [disableDescriptionMargin]="showTip"
     [groupByType]="groupByType()"
+    [clickItemsToAutofill]="clickItemsToAutofillVaultView$ | async"
     isAutofillList
     (onRefresh)="refreshCurrentTab()"
   >
-    @if (ciphers.length) {
+    @if (ciphers.length && (clickItemsToAutofillVaultView$ | async)) {
       <app-simplified-autofill-info slot="title-end" />
     }
   </app-vault-list-items-container>
